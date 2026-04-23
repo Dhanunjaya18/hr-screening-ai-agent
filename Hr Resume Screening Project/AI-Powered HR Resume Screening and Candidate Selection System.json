@@ -1,0 +1,472 @@
+{
+  "name": "AI-Powered HR Resume Screening and Candidate Selection System",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {},
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "id": "6d177f70-0934-4089-8760-0f346ce2c1f4",
+      "name": "Resume Email Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        256,
+        496
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "eDnFG5xEZuPBXltZ",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze this resume:\n{{ $json.text }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an AI hiring assistant.\n\nAnalyze the resume and return ONLY valid JSON in this format:\n\n{\n  \"name\": \"\",\n  \"main_skills\": [],\n  \"years_of_experience\": \"\",\n  \"fit_score\": \"\",\n  \"summary\": \"\"\n}\n\nScore the candidate from 0 to 10 based on:\n- Django\n- Python\n- Machine Learning\n- Projects\n- Experience\n\nIMPORTANT:\n- Output only JSON\n- No explanation text"
+        }
+      },
+      "id": "6b8def56-a73a-4165-a291-4c98ccc16f3d",
+      "name": "AI Resume Analyzer",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        784,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "e2cdfc56-0c5e-4911-b0ee-9f3effbb6e92",
+      "name": "Google Gemini Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        624,
+        784
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "0TyVhV6VQRnpu1zp",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"name\": {\n      \"type\": \"string\"\n    },\n    \"main_skills\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"years_of_experience\": {\n      \"type\": \"string\"\n    },\n    \"fit_score\": {\n      \"type\": \"string\"\n    },\n    \"summary\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"name\",\n    \"main_skills\",\n    \"years_of_experience\",\n    \"fit_score\",\n    \"summary\"\n  ]\n}"
+      },
+      "id": "676c06f2-99a5-47bb-8d77-1422d960a3f7",
+      "name": "JSON Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1024,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const score = parseFloat($json.output.fit_score || 0);\n\nlet decision = \"rejected\";\n\nif (score > 7.5) {\n  decision = \"selected\";\n} else if (score > 5) {\n  decision = \"review\";\n}\n\n// ✅ IMPORTANT: return ONLY object (not array)\nreturn {\n  decision: decision\n};"
+      },
+      "id": "a8423c1b-fc34-4b08-8726-1c7b439cadb1",
+      "name": "Evaluate Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.decision }}",
+                    "rightValue": "selected",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "2a96f014-a990-472d-bca8-a763a0df8afe"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.decision }}",
+                    "rightValue": "review",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "84be651a-eacb-4a54-8635-a4c9fc678529"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.decision }}",
+                    "rightValue": "rejected",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "1a864eda-10db-47ec-9526-beb6a0ce85a3"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6adc4067-7150-467c-8f44-0397efe67f44",
+      "name": "Route by Decision",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1504,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Resume Email Trigger').item.json.from.value[0].address }}",
+        "subject": "Congratulations! You are Selected 🎉",
+        "message": "Hi,  Congratulations! You have been selected.  We will contact you soon with the offer letter.  Best regards, HR Team",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "aa46c996-9253-4d09-8351-152d693acc80",
+      "name": "Send Selected Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1728,
+        496
+      ],
+      "webhookId": "c6848b0b-fff4-48a0-91cd-dab9d1428203",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "eDnFG5xEZuPBXltZ",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Resume Email Trigger').item.json.from.value[0].address }}",
+        "subject": "Application Under Review",
+        "message": "Your profile is under review. We will contact you soon.",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "0a98d770-63bf-4709-a064-6df88d676a47",
+      "name": "Send Review Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1728,
+        688
+      ],
+      "webhookId": "fc3274be-6c57-47ac-ba96-2d8f77044850",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "eDnFG5xEZuPBXltZ",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Resume Email Trigger').item.json.from.value[0].address }}",
+        "subject": "Application Update",
+        "message": "Thank you for applying. Better luck next time.",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "98eb584d-77a0-4cdb-a663-705097a6ef2b",
+      "name": "Send Rejected Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1728,
+        304
+      ],
+      "webhookId": "6563ccb1-ece9-4866-9116-0de187b6ee35",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "eDnFG5xEZuPBXltZ",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "Name",
+              "value": "={{ $('AI Resume Analyzer').item.json.output.name }}",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "Skills",
+              "value": "={{ $('AI Resume Analyzer').item.json.output.main_skills.join(\", \") }}",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "Experience",
+              "value": "={{ $('AI Resume Analyzer').item.json.output.years_of_experience }}",
+              "type": "string"
+            },
+            {
+              "id": "id-4",
+              "name": "Fit Score",
+              "value": "={{ $('AI Resume Analyzer').item.json.output.fit_score }}",
+              "type": "string"
+            },
+            {
+              "id": "id-5",
+              "name": "Decision",
+              "value": "={{ $('Evaluate Decision').item.json.decision }}",
+              "type": "string"
+            },
+            {
+              "id": "9b8c58b2-197d-4f02-9ead-d8ac55fbf433",
+              "name": "Email",
+              "value": "={{ $('Resume Email Trigger').item.json.from.value[0].address }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8d585653-f592-4e40-8e21-095246b2f0b5",
+      "name": "Prepare Sheet Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1952,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "attachment_0",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        464,
+        496
+      ],
+      "id": "eabc7686-a087-445d-bd39-f09ffe2c1361",
+      "name": "Extract from File"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Resume Email Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Resume Analyzer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JSON Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Resume Analyzer",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Resume Analyzer": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Decision": {
+      "main": [
+        [
+          {
+            "node": "Route by Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Decision": {
+      "main": [
+        [
+          {
+            "node": "Send Selected Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Review Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Rejected Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Selected Email": {
+      "main": [
+        [
+          {
+            "node": "Prepare Sheet Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Review Email": {
+      "main": [
+        [
+          {
+            "node": "Prepare Sheet Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Rejected Email": {
+      "main": [
+        [
+          {
+            "node": "Prepare Sheet Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Sheet Data": {
+      "main": [
+        []
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "AI Resume Analyzer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "62e97e15-08fa-4705-9799-991b6b2b6256",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3b1e973732aece884d78a92b1531153701c6867192cfd8756887d3ccd867ca71"
+  },
+  "id": "vzAw0SD6M2mBSitJ",
+  "tags": []
+}
